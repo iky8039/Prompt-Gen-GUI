@@ -1,0 +1,40 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+# Ignore build artifacts but keep version descriptor
+build/
+!build/version.txt
+dist/
+*.egg-info/
+.eggs/
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Virtual environments
+.venv/
+env/
+venv/
+
+# PyInstaller
+*.spec
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+
+# Build artifacts and executables
+*.exe
+*.msi
+*.deb
+
+# Tests
+.pytest_cache/
