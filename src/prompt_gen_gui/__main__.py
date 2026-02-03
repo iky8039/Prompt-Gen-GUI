@@ -20,7 +20,11 @@ else:
     except NameError:
         BASE_DIR = os.getcwd()
 
+
 CONFIG_FILE = os.path.join(BASE_DIR, "tags.json")
+# --- エイリアス・日本語タグ辞書のパス ---
+ALIAS_FILE = os.path.join(BASE_DIR, "..", "..", "py", "keyword_aliases.json")
+JP_TAG_FILE = os.path.join(BASE_DIR, "..", "..", "py", "japanese_tags.json")
 
 COLORS = {
     "bg_main": "#f5f7f9",
@@ -54,9 +58,22 @@ class PromptBuilderApp:
             "人物": ['1girl', 'Portrait', 'Smiling']
         }
 
+
         self.load_initial_keywords()
         self.delete_mode = False
         self.current_category = list(self.my_keywords.keys())[0] if self.my_keywords else "常用"
+
+        # --- エイリアス・日本語タグ辞書の読み込み ---
+        self.alias_dict = self.load_json_dict(ALIAS_FILE)
+        self.jp_tag_dict = self.load_json_dict(JP_TAG_FILE)
+    def load_json_dict(self, path):
+        if os.path.exists(path):
+            try:
+                with open(path, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except Exception as e:
+                print(f"辞書読み込み失敗: {e}")
+        return {}
 
         self.main_frame = tk.Frame(root, bg=COLORS["bg_main"], padx=20, pady=20)
         self.main_frame.pack(fill="both", expand=True)
@@ -170,15 +187,27 @@ class PromptBuilderApp:
             widget.destroy()
 
         search_term = self.search_var.get().lower()
-        
+        filtered_keywords = []
+        seen = set()
         if search_term:
-            filtered_keywords = []
-            seen = set()
+            # 1. カテゴリ内キーワード
             for cat_tags in self.my_keywords.values():
                 for kw in cat_tags:
                     if search_term in kw.lower() and kw not in seen:
                         filtered_keywords.append(kw)
                         seen.add(kw)
+            # 2. 英語→日本語エイリアス
+            for k, aliases in self.alias_dict.items():
+                if search_term in k.lower() or any(search_term in a.lower() for a in aliases):
+                    if k not in seen:
+                        filtered_keywords.append(k)
+                        seen.add(k)
+            # 3. 日本語→英語タグ
+            for k, tags in self.jp_tag_dict.items():
+                if search_term in k or any(search_term in t for t in tags):
+                    if k not in seen:
+                        filtered_keywords.append(k)
+                        seen.add(k)
         else:
             filtered_keywords = self.my_keywords.get(self.current_category, [])
 
