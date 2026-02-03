@@ -7,7 +7,7 @@ import json
 import os
 import sys
 
-__version__ = "1.5.4"
+__version__ = "1.6.0"
 APP_NAME = "Prompt Gen GUI"
 
 if getattr(sys, 'frozen', False):
@@ -198,23 +198,33 @@ class PromptBuilderApp:
 		search_term = self.search_var.get().lower()
 		filtered_keywords = []
 		seen = set()
+		JP_TAG_LIMIT = 100  # 日本語タグの最大表示数
+		jp_tag_count = 0
+
 		if search_term:
+			# ユーザーキーワード
 			for cat_tags in self.my_keywords.values():
 				for kw in cat_tags:
 					if search_term in kw.lower() and kw not in seen:
 						filtered_keywords.append(kw)
 						seen.add(kw)
+			# エイリアス
 			for k, aliases in self.alias_dict.items():
 				if search_term in k.lower() or any(search_term in a.lower() for a in aliases):
 					if k not in seen:
 						filtered_keywords.append(k)
 						seen.add(k)
+			# 日本語タグ（部分一致・最大100件まで）
 			for k, tags in self.jp_tag_dict.items():
+				if jp_tag_count >= JP_TAG_LIMIT:
+					break
 				if search_term in k or any(search_term in t for t in tags):
 					if k not in seen:
 						filtered_keywords.append(k)
 						seen.add(k)
+						jp_tag_count += 1
 		else:
+			# 検索欄が空のときはユーザーキーワードのみ
 			filtered_keywords = self.my_keywords.get(self.current_category, [])
 
 		container_width = self.canvas.winfo_width()
