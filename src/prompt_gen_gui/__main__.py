@@ -4,10 +4,14 @@ import json
 import os
 import sys
 
-from . import __version__, APP_NAME
+# 本地導入部分（保留原樣）
+try:
+    from . import __version__, APP_NAME
+except ImportError:
+    __version__ = "1.0.0"
+    APP_NAME = "Prompt Gen GUI"
 
 # --- Constants ---
-# .exe化しても実行ファイルと同じ場所に設定ファイルを保存するためのパス設定
 if getattr(sys, 'frozen', False):
     BASE_DIR = os.path.dirname(sys.executable)
 else:
@@ -16,9 +20,8 @@ else:
     except NameError:
         BASE_DIR = os.getcwd()
 
-CONFIG_FILE = os.path.join(BASE_DIR, "keywords_config.json")
+CONFIG_FILE = os.path.join(BASE_DIR, "tags.json")
 
-# カラーパレット（モダンな配色）
 COLORS = {
     "bg_main": "#f5f7f9",
     "bg_sidebar": "#ffffff",
@@ -33,7 +36,6 @@ COLORS = {
     "border": "#dcdfe6"
 }
 
-# フォント設定
 FONT_TITLE = ("Segoe UI", 12, "bold")
 FONT_NORMAL = ("Segoe UI", 10)
 FONT_SMALL = ("Segoe UI", 9)
@@ -42,28 +44,28 @@ class PromptBuilderApp:
     def __init__(self, root):
         self.root = root
         self.root.title(f"{APP_NAME} v{__version__}")
-        self.root.geometry("700x600")
+        self.root.geometry("700x700")
         self.root.minsize(500, 400)
         self.root.configure(bg=COLORS["bg_main"])
 
-        # 初期キーワード
-        self.default_keywords = ['AI', 'Research', 'Code', 'Python', 'Data Science', 'Machine Learning',
-                                'NLP', 'GANs', 'Deep Learning', 'Neural Networks']
+        self.default_keywords = {
+            "常用": ['AI', 'Research', 'Code', 'Python'],
+            "風格": ['Masterpiece', 'High Quality', 'Cyberpunk'],
+            "人物": ['1girl', 'Portrait', 'Smiling']
+        }
 
         self.load_initial_keywords()
         self.delete_mode = False
+        self.current_category = list(self.my_keywords.keys())[0] if self.my_keywords else "常用"
 
-        # --- UI コンポーネント ---
         self.main_frame = tk.Frame(root, bg=COLORS["bg_main"], padx=20, pady=20)
         self.main_frame.pack(fill="both", expand=True)
 
-        # プロンプト入力エリア
         tk.Label(self.main_frame, text="Prompt Composition", font=FONT_TITLE, bg=COLORS["bg_main"], fg=COLORS["text_main"]).pack(anchor="w", pady=(0, 5))
         self.prompt_text = tk.Text(self.main_frame, height=5, font=FONT_NORMAL, bg="#ffffff", fg=COLORS["text_main"],
                                    relief="flat", highlightthickness=1, highlightbackground=COLORS["border"], padx=10, pady=10)
         self.prompt_text.pack(fill="x", pady=(0, 10))
 
-        # ボタン類
         self.btn_frame = tk.Frame(self.main_frame, bg=COLORS["bg_main"])
         self.btn_frame.pack(fill="x", pady=(0, 20))
 
@@ -76,15 +78,15 @@ class PromptBuilderApp:
                                  bg=COLORS["info"], fg="white", relief="flat", font=FONT_SMALL, padx=10)
         self.del_btn.pack(side="right")
 
-        # 検索・追加エリア
         self.search_frame = tk.Frame(self.main_frame, bg="#ffffff", pady=15, padx=15,
                                      highlightthickness=1, highlightbackground=COLORS["border"])
-        self.search_frame.pack(fill="x", pady=(0, 20))
+        self.search_frame.pack(fill="x", pady=(0, 10))
 
         tk.Label(self.search_frame, text="Search / Add Keywords:", font=FONT_NORMAL, bg="#ffffff", fg=COLORS["text_main"]).pack(side="left")
 
         self.search_var = tk.StringVar()
         self.search_var.trace_add("write", lambda *args: self.update_keyword_ui())
+        
         self.search_entry = tk.Entry(self.search_frame, textvariable=self.search_var, font=FONT_NORMAL,
                                      relief="flat", highlightthickness=1, highlightbackground=COLORS["border"])
         self.search_entry.pack(side="left", fill="x", expand=True, padx=(10, 10), ipady=3)
@@ -92,7 +94,10 @@ class PromptBuilderApp:
         tk.Button(self.search_frame, text="Add +", command=self.add_keyword,
                   bg=COLORS["success"], fg="white", relief="flat", font=FONT_NORMAL, padx=15).pack(side="right")
 
-        # キーワード一覧（スクロール可能）
+        self.cat_frame = tk.Frame(self.main_frame, bg=COLORS["bg_main"])
+        self.cat_frame.pack(fill="x", pady=(0, 10))
+        self.render_category_buttons()
+
         self.canvas_container = tk.Frame(self.main_frame, bg=COLORS["bg_main"])
         self.canvas_container.pack(fill="both", expand=True)
 
@@ -118,7 +123,11 @@ class PromptBuilderApp:
         if os.path.exists(CONFIG_FILE):
             try:
                 with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
-                    self.my_keywords = json.load(f)
+                    data = json.load(f)
+                    if isinstance(data, dict):
+                        self.my_keywords = data
+                    else:
+                        self.my_keywords = self.default_keywords.copy()
             except Exception:
                 self.my_keywords = self.default_keywords.copy()
         else:
@@ -129,6 +138,21 @@ class PromptBuilderApp:
                         relief="flat", font=FONT_SMALL, padx=12, pady=5)
         btn.pack(side="left", padx=(0, 5))
         return btn
+
+    def render_category_buttons(self):
+        for widget in self.cat_frame.winfo_children():
+            widget.destroy()
+        for cat in self.my_keywords.keys():
+            is_active = (cat == self.current_category)
+            bg_color = COLORS["primary"] if is_active else COLORS["secondary"]
+            btn = tk.Button(self.cat_frame, text=cat, command=lambda c=cat: self.switch_category(c),
+                            bg=bg_color, fg="white", relief="flat", font=FONT_SMALL, padx=10, pady=2)
+            btn.pack(side="left", padx=(0, 5))
+
+    def switch_category(self, category):
+        self.current_category = category
+        self.render_category_buttons()
+        self.update_keyword_ui()
 
     def on_canvas_configure(self, event):
         self.canvas.itemconfig(self.canvas_window, width=event.width)
@@ -146,7 +170,17 @@ class PromptBuilderApp:
             widget.destroy()
 
         search_term = self.search_var.get().lower()
-        filtered_keywords = [kw for kw in self.my_keywords if search_term in kw.lower()]
+        
+        if search_term:
+            filtered_keywords = []
+            seen = set()
+            for cat_tags in self.my_keywords.values():
+                for kw in cat_tags:
+                    if search_term in kw.lower() and kw not in seen:
+                        filtered_keywords.append(kw)
+                        seen.add(kw)
+        else:
+            filtered_keywords = self.my_keywords.get(self.current_category, [])
 
         container_width = self.canvas.winfo_width()
         if container_width < 100: container_width = 600
@@ -167,10 +201,26 @@ class PromptBuilderApp:
 
     def on_kw_click(self, kw):
         if self.delete_mode:
-            if kw in self.my_keywords:
-                self.my_keywords.remove(kw)
-                self.auto_save_keywords()
-                self.update_keyword_ui()
+            found_in_categories = [cat for cat, tags in self.my_keywords.items() if kw in tags]
+            if not found_in_categories:
+                return
+
+            if len(found_in_categories) > 1:
+                msg = f"關鍵字 '{kw}' 存在於多個分類：\n" + ", ".join(found_in_categories) + "\n\n是否從所有分類中移除？"
+                if messagebox.askyesno("多重分類確認", msg):
+                    for cat in found_in_categories:
+                        if kw in self.my_keywords[cat]:
+                            self.my_keywords[cat].remove(kw)
+                else:
+                    if self.current_category in found_in_categories:
+                        self.my_keywords[self.current_category].remove(kw)
+            else:
+                target_cat = found_in_categories[0]
+                if kw in self.my_keywords[target_cat]:
+                    self.my_keywords[target_cat].remove(kw)
+                
+            self.auto_save_keywords()
+            self.update_keyword_ui()
         else:
             current = self.prompt_text.get("1.0", tk.END).strip()
             self.prompt_text.delete("1.0", tk.END)
@@ -184,32 +234,24 @@ class PromptBuilderApp:
         self.update_keyword_ui()
 
     def add_keyword(self):
-        added_count = 0
-        # 1. 入力フィールドから追加
         input_kw = self.search_var.get().strip()
-        if input_kw:
-            if input_kw not in self.my_keywords:
-                self.my_keywords.append(input_kw)
-                added_count += 1
-            self.search_var.set("")
+        if not input_kw: return
+        
+        if self.current_category not in self.my_keywords:
+            self.my_keywords[self.current_category] = []
 
-        # 2. プロンプト入力エリアから新規単語を抽出して追加
-        prompt_content = self.prompt_text.get("1.0", tk.END).strip()
-        if prompt_content:
-            potential_tags = [t.strip() for t in prompt_content.replace('\n', ',').split(',') if t.strip()]
-            for t in potential_tags:
-                if t not in self.my_keywords:
-                    self.my_keywords.append(t)
-                    added_count += 1
-
-        if added_count > 0:
+        if input_kw not in self.my_keywords[self.current_category]:
+            self.my_keywords[self.current_category].append(input_kw)
             self.auto_save_keywords()
+            self.search_var.set("")
             self.update_keyword_ui()
 
     def reset_keywords(self):
         if messagebox.askyesno("Reset", "キーワードリストを初期状態に戻しますか？"):
             self.my_keywords = self.default_keywords.copy()
+            self.current_category = list(self.my_keywords.keys())[0]
             self.auto_save_keywords()
+            self.render_category_buttons()
             self.update_keyword_ui()
 
     def copy_to_clipboard(self):
@@ -230,30 +272,25 @@ class PromptBuilderApp:
             try:
                 with open(path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
-                    if isinstance(data, list):
-                        # 差分取り込み（マージ）ロジック
-                        old_set = set(self.my_keywords)
-                        new_items = [str(item).strip() for item in data if str(item).strip() and str(item).strip() not in old_set]
-                        
-                        if new_items:
-                            self.my_keywords.extend(new_items)
-                            self.auto_save_keywords()
-                            self.update_keyword_ui()
-                            messagebox.showinfo("Merge Success", f"{len(new_items)}件の新しいキーワードを追加しました。")
-                        else:
-                            messagebox.showinfo("Merge Info", "新しいキーワードは見つかりませんでした。")
+                    if isinstance(data, dict):
+                        for cat, tags in data.items():
+                            if cat in self.my_keywords:
+                                old_set = set(self.my_keywords[cat])
+                                new_tags = [t for t in tags if t not in old_set]
+                                self.my_keywords[cat].extend(new_tags)
+                            else:
+                                self.my_keywords[cat] = tags
+                        self.auto_save_keywords()
+                        self.render_category_buttons()
+                        self.update_keyword_ui()
+                        messagebox.showinfo("Merge Success", "分類與關鍵字已成功合併。")
             except Exception as e:
                 messagebox.showerror("Error", f"読み込み失敗: {e}")
 
-
 def main():
-    try:
-        root = tk.Tk()
-        app = PromptBuilderApp(root)
-        root.mainloop()
-    except tk.TclError:
-        print("GUI環境が見つかりません。ローカルPCで実行してください。")
-
+    root = tk.Tk()
+    app = PromptBuilderApp(root)
+    root.mainloop()
 
 if __name__ == "__main__":
     main()
