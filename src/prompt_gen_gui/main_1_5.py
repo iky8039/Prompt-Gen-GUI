@@ -7,7 +7,7 @@ import json
 import os
 import sys
 
-__version__ = "1.5"
+__version__ = "1.5.4"
 APP_NAME = "Prompt Gen GUI"
 
 if getattr(sys, 'frozen', False):
@@ -149,6 +149,9 @@ class PromptBuilderApp:
 					data = json.load(f)
 					if isinstance(data, dict):
 						self.my_keywords = data
+					elif isinstance(data, list):
+						# リスト形式なら「常用」カテゴリに割り当て
+						self.my_keywords = {"常用": data}
 					else:
 						self.my_keywords = self.default_keywords.copy()
 			except Exception:
